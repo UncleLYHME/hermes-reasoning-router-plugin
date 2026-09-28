@@ -4,7 +4,7 @@ version = "0.3.6+ollie.1"
 description = "Hermes gateway plugin for automatic Discord, Telegram, and Buzz reasoning-effort routing."
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = ["PyYAML>=6"]
+dependencies = []  # Hermes bans PyYAML; the plugin falls back to hermes_yaml
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
