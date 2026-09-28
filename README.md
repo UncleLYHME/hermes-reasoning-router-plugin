@@ -6,6 +6,14 @@ It is useful when one chat contains both tiny messages (`thanks`, `what time is 
 
 > Current chat-surface support: **Discord, Telegram, and Buzz gateway messages**. All three use Hermes' normalized `MessageEvent` / `SessionSource` path. Tests cover Discord/Telegram topic or thread keys, Buzz's no-thread key shape, platform gating, and decision records. Cron jobs and non-gateway surfaces do not use this router.
 
+## Ollie fork changes (`ollie` branch)
+
+- GPT-6 support: per-model effort clamp (see Routing guide); classifier default `gpt-6-luna`.
+- `respect_manual_override` (default on): a human `/reasoning <level>` pins the session until `/reasoning reset`; the router only updates overrides it set itself.
+- Gateway framing (origin preamble, out-of-band steering markers) is stripped before classifying, so words like "authorization" in Hermes' own wrapper no longer push every message to `high`.
+- `url_floor` (default `medium`): a short message carrying a link or path is treated as "go look into this", not a quick reply.
+- YAML falls back to Hermes' bundled `hermes_yaml` when PyYAML is absent (current Hermes ships no PyYAML).
+
 ## What it does
 
 - Routes each enabled Discord, Telegram, or Buzz gateway message to one of:
@@ -61,7 +69,7 @@ High-complexity categories are counted. If a message hits at least `xhigh_high_m
 
 ### GPT-5.6 Sol, Terra, and Luna
 
-The router is model-agnostic and works with the Codex model IDs `gpt-5.6-sol`, `gpt-5.6-terra`, and `gpt-5.6-luna`. All three accept the provider reasoning effort `max`. Codex may call its maximum orchestration tier **Ultra**, but `ultra` is not a valid `reasoning.effort` wire value; the router normalizes that label to `max` before setting Hermes' session override.
+The router is model-agnostic. Routes are clamped onto the session model's real effort ladder (`model_aware_clamp`, on by default): `gpt-6-sol`, `gpt-6-luna` and `gpt-5.6-*` accept `max`; `gpt-6-terra` stops at `xhigh`; `gpt-6-astra` has no `none`/`minimal` (floor `low`); older `gpt-5.x` stop at `xhigh`; Claude models accept `none` through `max`. When Hermes is importable its own `codex_supported_efforts` is used, so the ladders stay in lockstep. Codex may call its maximum orchestration tier **Ultra**, but `ultra` is not a valid `reasoning.effort` wire value; the router normalizes that label to `max` before setting Hermes' session override.
 
 The default router clamp remains `max: xhigh` for backward compatibility and predictable cost. Opt into the new tier with `/reasoning-router max max` (or `/reasoning-router max ultra`) only when the active provider/model supports it.
 
@@ -151,7 +159,7 @@ pending_intent_ttl_minutes: 30
 # Optional live semantic classifier. Disabled by default.
 semantic_classifier_enabled: false
 semantic_classifier_url: http://127.0.0.1:8080/v1/chat/completions
-semantic_classifier_model: gpt-5.6-luna
+semantic_classifier_model: gpt-6-luna
 # Prefer CODEX_PROXY_API_KEY or OPENAI_API_KEY in the environment instead of
 # storing a key here. Leave empty to use env vars, or omit the field entirely.
 semantic_classifier_api_key: ""
@@ -179,7 +187,7 @@ Config fields:
 | `pending_intent_ttl_minutes` | `30` | Expiration window for pending approval intent. Values below 1 are clamped to 1 minute. |
 | `semantic_classifier_enabled` | `false` | Enables the optional OpenAI-compatible classifier for ambiguous cases only. Deterministic guardrails still win. |
 | `semantic_classifier_url` | `http://127.0.0.1:8080/v1/chat/completions` | Chat-completions endpoint used by the semantic classifier. Intended for a local codex-proxy/OpenAI-compatible service. |
-| `semantic_classifier_model` | `gpt-5.6-luna` | Model name sent to the classifier endpoint. |
+| `semantic_classifier_model` | `gpt-6-luna` | Model name sent to the classifier endpoint. |
 | `semantic_classifier_api_key` | `""` | Bearer token for the classifier endpoint. If omitted or empty, the plugin checks `CODEX_PROXY_API_KEY`, then `OPENAI_API_KEY`; if no key is available, it sends no `Authorization` header. Do not commit real keys. |
 | `semantic_classifier_timeout_seconds` | `8` | HTTP timeout for the classifier call. Values below 1 are clamped to 1 second. |
 | `semantic_classifier_min_confidence` | `0.75` | Minimum classifier confidence required before a semantic result is accepted. Lower-confidence results fall back to deterministic routing. |
@@ -216,7 +224,7 @@ Conservative semantic classifier via local OpenAI-compatible proxy:
 ```yaml
 semantic_classifier_enabled: true
 semantic_classifier_url: http://127.0.0.1:8080/v1/chat/completions
-semantic_classifier_model: gpt-5.6-luna
+semantic_classifier_model: gpt-6-luna
 # Export CODEX_PROXY_API_KEY instead of storing the key here:
 #   export CODEX_PROXY_API_KEY='...'
 semantic_classifier_timeout_seconds: 3
@@ -331,7 +339,7 @@ The live semantic classifier is optional and disabled by default. It posts a cha
 
 ```json
 {
-  "model": "gpt-5.6-luna",
+  "model": "gpt-6-luna",
   "messages": [
     {"role": "system", "content": "...routing instructions..."},
     {"role": "user", "content": "{...current_user_message/context JSON...}"}
